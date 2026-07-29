@@ -1,21 +1,29 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Alert, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
-import * as Notifications from "expo-notifications";
-
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldPlaySound: true,
-    shouldSetBadge: false,
-  }),
-});
 
 const NotificationScreen = () => {
   const [title, setTitle] = useState("");
   const [second, setSecond] = useState("");
-  const [scheduledNotifications, setScheduledNotifications] = useState([]); 
+  const [scheduledNotifications, setScheduledNotifications] = useState([]);
+  const notificationsRef = useRef(null);
+
+  const loadNotificationsModule = async () => {
+    if (!notificationsRef.current) {
+      const Notifications = await import('expo-notifications');
+      Notifications.setNotificationHandler({
+        handleNotification: async () => ({
+          shouldShowAlert: true,
+          shouldPlaySound: true,
+          shouldSetBadge: false,
+        }),
+      });
+      notificationsRef.current = Notifications;
+    }
+    return notificationsRef.current;
+  };
 
   const takePermission = async () => {
+    const Notifications = await loadNotificationsModule();
     const { status } = await Notifications.requestPermissionsAsync();
     if (status !== "granted") {
       Alert.alert("Permission Denied", "Please enable notifications in your settings.");
@@ -29,6 +37,7 @@ const NotificationScreen = () => {
     }
 
     try {
+      const Notifications = await loadNotificationsModule();
       await Notifications.scheduleNotificationAsync({
         content: {
           title: "Reminder",
@@ -37,24 +46,26 @@ const NotificationScreen = () => {
         },
         trigger: {
           type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL,
-          seconds: Number(second), 
+          seconds: Number(second),
         },
       });
       Alert.alert("Success", `Notification scheduled in ${second} seconds!`);
       setTitle("");
       setSecond("");
-      loadNotifications(); 
+      loadNotifications();
     } catch (error) {
       Alert.alert("Error", "Failed to schedule notification.");
     }
   };
 
   const loadNotifications = async () => {
+    const Notifications = await loadNotificationsModule();
     const data = await Notifications.getAllScheduledNotificationsAsync();
     setScheduledNotifications(data);
   };
 
   const clearAll = async () => {
+    const Notifications = await loadNotificationsModule();
     await Notifications.cancelAllScheduledNotificationsAsync();
     setScheduledNotifications([]);
     Alert.alert("Cleared", "All scheduled notifications have been canceled.");
@@ -62,8 +73,8 @@ const NotificationScreen = () => {
 
   useEffect(() => {
     takePermission();
-    loadNotifications(); 
-  }, []); 
+    loadNotifications();
+  }, []);
 
   return (
     <View style={styles.container}>
