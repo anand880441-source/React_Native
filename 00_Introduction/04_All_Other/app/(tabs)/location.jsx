@@ -1,393 +1,194 @@
-import React, { useEffect, useRef, useState } from "react";
-import { View, Text, Button, StyleSheet } from "react-native";
+import { View, Text, StyleSheet, Pressable, Alert } from 'react-native';
 import * as Location from "expo-location";
+import MapView, { Marker } from 'react-native-maps';
+import { useState } from 'react';
 
-export default function LocationScreen() {
+const LocationScreen = () => {
   const [location, setLocation] = useState(null);
-  const statRef = useRef(null);
+  const [lastLocation, setLastLocation] = useState(null);
 
-  const handleStartTracker = async () => {
+  const handleGrantPermission = async () => {
+    console.log("--- handleGrantPermission Triggered ---");
     const permission = await Location.requestForegroundPermissionsAsync();
+    
+    console.log("Permission Response Object:", JSON.stringify(permission, null, 2));
 
     if (!permission.granted) {
-      alert("Permission to access location was denied");
+      Alert.alert("Permission Denied", "Location permission is required to use this feature.");
+      return;
+    }
+    
+    Alert.alert("Success", "Location permission granted!");
+  };
+
+  const handleGetCurrentLocation = async () => {
+    console.log("--- handleGetCurrentLocation Triggered ---");
+    const isGranted = await Location.getForegroundPermissionsAsync();
+    
+    if (!isGranted.granted) {
+      Alert.alert("Permission Required", "Please grant location access first.");
       return;
     }
 
-    statRef.current = await Location.watchPositionAsync(
-      {
-        accuracy: Location.Accuracy.High,
-        timeInterval: 2000, // update every 2 seconds
-        distanceInterval: 1, // update every 1 meter
-      },
-      (resLocation) => {
-        console.log(resLocation);
-        setLocation(resLocation);
+    try {
+      console.log("Requesting highest accuracy current position...");
+      const currentLocation = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.Highest
+      });
+      
+      console.log("Fetched Current Location Successfully:", JSON.stringify(currentLocation, null, 2));
+      
+      if (currentLocation) {
+        setLocation(currentLocation);
       }
-    );
-  };
-
-  const handleStopTracker = () => {
-    if (statRef.current) {
-      statRef.current.remove();
-      statRef.current = null;
+    } catch (error) {
+      console.error("Error caught in handleGetCurrentLocation:", error);
+      Alert.alert("Error", "Could not fetch location.");
     }
   };
 
+  const getLastLocation = async () => {
+    console.log("--- getLastLocation Triggered ---");
+    const isGranted = await Location.getForegroundPermissionsAsync();
+    
+    if (!isGranted.granted) {
+      Alert.alert("Permission Required", "Please grant location access first.");
+      return;
+    }
+
+    console.log("Retrieving hardware cached position...");
+    const savedlastLocation = await Location.getLastKnownPositionAsync();
+
+    console.log("Fetched Last Known Cached Location Object:", JSON.stringify(savedlastLocation, null, 2));
+
+    if (savedlastLocation) {
+      setLastLocation(savedlastLocation);
+    } else {
+      Alert.alert("Not Found", "No last known location cached on this device.");
+    }
+  };
+
+  const activeLocation = location || lastLocation;
+
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Location Tracker</Text>
+      <Text style={styles.title}>Location Screen</Text>
+      
+      <Pressable style={styles.button} onPress={handleGrantPermission}>
+        <Text style={styles.buttonText}>Grant Permission</Text>
+      </Pressable>
+      
+      <Pressable style={styles.button} onPress={handleGetCurrentLocation}>
+        <Text style={styles.buttonText}>Get Current Location</Text>
+      </Pressable>
 
-      {location ? (
-        <View style={styles.locationBox}>
-          <Text style={styles.text}>
-            Latitude: {location.coords.latitude.toFixed(6)}
-          </Text>
-          <Text style={styles.text}>
-            Longitude: {location.coords.longitude.toFixed(6)}
-          </Text>
-          <Text style={styles.text}>
-            Accuracy: {location.coords.accuracy} m
-          </Text>
+      <Pressable style={styles.button} onPress={getLastLocation}>
+        <Text style={styles.buttonText}>Get Last Location</Text>
+      </Pressable>
+
+      {location && (
+        <View style={styles.locationInfo}>
+          <Text style={styles.sectionHeader}>Current Location:</Text>
+          <Text style={styles.locationText}>Latitude: {location.coords.latitude}</Text>
+          <Text style={styles.locationText}>Longitude: {location.coords.longitude}</Text>
         </View>
-      ) : (
-        <Text style={styles.text}>No location yet...</Text>
       )}
 
-      <View style={styles.buttonRow}>
-        <Button title="Start Tracking" onPress={handleStartTracker} />
-        <Button title="Stop Tracking" onPress={handleStopTracker} />
-      </View>
+      {lastLocation && (
+        <View style={styles.locationInfo}>
+          <Text style={styles.sectionHeader}>Last Location:</Text>
+          <Text style={styles.locationText}>Latitude: {lastLocation.coords.latitude}</Text>
+          <Text style={styles.locationText}>Longitude: {lastLocation.coords.longitude}</Text>
+        </View>
+      )}
+
+      {activeLocation && (
+        <View style={styles.mapContainer}>
+          <MapView
+            style={styles.map}
+            region={{
+              latitude: activeLocation.coords.latitude,
+              longitude: activeLocation.coords.longitude,
+              latitudeDelta: 0.01,
+              longitudeDelta: 0.01,
+            }}
+            showsUserLocation={true}
+          >
+            <Marker
+              coordinate={{
+                latitude: activeLocation.coords.latitude,
+                longitude: activeLocation.coords.longitude,
+              }}
+              title="Selected Location"
+              description="This is the fetched coordinate point"
+            />
+          </MapView>
+        </View>
+      )}
     </View>
   );
-}
+};
+
+export default LocationScreen;
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    backgroundColor: "#006d77", // deep teal
-    padding: 20,
+    justify: 'center',
+    alignItems: 'center',
+    backgroundColor: 'white',
+    paddingVertical: 20,
   },
   title: {
-    fontSize: 26,
-    fontWeight: "bold",
-    marginBottom: 25,
-    color: "#edf6f9", // soft white
-    textAlign: "center",
+    fontSize: 24,
+    fontWeight: 'bold',
+    marginBottom: 20,
   },
-  locationBox: {
-    marginBottom: 25,
-    padding: 20,
-    backgroundColor: "#83c5be", // light teal
-    borderRadius: 12,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 5, // Android shadow
-    width: "90%",
-  },
-  text: {
+  sectionHeader: {
     fontSize: 16,
-    color: "#073b4c", // dark navy
-    marginBottom: 8,
+    fontWeight: 'bold',
+    color: '#1a1a1a',
+    marginBottom: 4,
   },
-  buttonRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    width: "80%",
-    marginTop: 15,
-  },
-  buttonWrapper: {
-    flex: 1,
-    marginHorizontal: 5,
+  locationInfo: {
+    marginVertical: 5,
+    alignItems: 'center',
+    backgroundColor: '#f0f0f0',
+    padding: 10,
     borderRadius: 8,
-    overflow: "hidden", // ensures button respects rounded corners
+    width: '80%',
+  },
+  locationText: {
+    fontSize: 14,
+    marginVertical: 1,
+    fontWeight: '500',
+  },
+  button: {
+    backgroundColor: '#4e4a4a',
+    borderWidth: 2,
+    borderColor: 'black',
+    padding: 15,
+    margin: 5,
+    borderRadius: 5,
+    width: '80%',
+    alignItems: 'center',
+  },
+  buttonText: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: 'white',
+  },
+  mapContainer: {
+    width: '90%',
+    height: 250,
+    borderRadius: 12,
+    overflow: 'hidden',
+    marginTop: 15,
+    borderWidth: 1,
+    borderColor: '#ccc',
+  },
+  map: {
+    width: '100%',
+    height: '100%',
   },
 });
-
-
-
-
-// import { Pressable, StyleSheet, Text, View } from 'react-native'
-// import React, { useEffect, useState,useRef } from 'react'
-// import * as Location from 'expo-location';
-
-// const location = () => {
-//   const [locationData, setLocationData] = useState(null);
-//   const [location, setLocation] = useState(null);
-
-//   const statRef = useRef(null);
-
-
-//   const handleStartTracker = async () => {
-//     const permission = await Location.requestForegroundPermissionsAsync();
-
-//     if (!permission.granted) {
-//       return;
-//     }
-
-//     statRef.current = await Location.watchPositionAsync({}, (resLocation) => {
-//       console.log(resLocation);
-//       setLocation(resLocation);
-//     });
-//   };
-
-//   const handleStopTracker = () => {
-//   if (statRef.current) {
-//     statRef.current.remove();
-//     statRef.current = null;
-//   }
-// };
-
-//   const handleGrantPermission = async () => {
-//     const permission = await Location.requestForegroundPermissionsAsync();
-
-//     if (!permission.granted) {
-//       alert("Location permission denied");
-//       return;
-//     }
-
-//     await handleGetCurrentLocation();
-//     await prevLocation();
-//   }
-
-//   const handleGetCurrentLocation = async () => {
-//     const currentLocation = await Location.getCurrentPositionAsync({
-//       accuracy: Location.Accuracy.Highest
-//     });
-
-//     setLocationData(currentLocation.coords);
-
-//     console.log(currentLocation);
-//   }
-
-//   const prevLocation = async () => {
-//     const result = await Location.getLastKnownPositionAsync();
-
-//     if (result) {
-//       console.log(result);
-//       // setLocationData(result.coords);
-//     }
-//   }
-
-//   useEffect(() => {
-//     handleGrantPermission();
-//   }, [])
-
-//   return (
-//     <View style={styles.container}>
-
-//       <Text style={styles.title}>Location</Text>
-
-//       {/* <Pressable onPress={handleGrantPermission} style={styles.button}>
-//         <Text style={styles.buttonText}>Grant Permission</Text>
-//       </Pressable>
-
-//       <Pressable onPress={handleGetCurrentLocation} style={styles.button}>
-//         <Text style={styles.buttonText}>Get Current Location</Text>
-//       </Pressable> */}
-
-//       <Pressable onPress={handleStartTracker} style={styles.button}>
-//         <Text style={styles.buttonText}>Grant Permission</Text>
-//       </Pressable>
-
-//       <Pressable onPress={handleStopTracker} style={styles.button}>
-//         <Text style={styles.buttonText}>Get Current Location</Text>
-//       </Pressable>
-
-//       {locationData && (
-//         <>
-//           <Text style={styles.locationText}>
-//             Latitude: {locationData.latitude}
-//           </Text>
-
-//           <Text style={styles.locationText}>
-//             Longitude: {locationData.longitude}
-//           </Text>
-
-//           <Text style={styles.locationText}>
-//             Accuracy: {locationData.accuracy}
-//           </Text>
-
-//           <Text style={styles.locationText}>
-//             Altitude: {locationData.altitude}
-//           </Text>
-//         </>
-//       )}
-//     </View>
-//   )
-// }
-
-// export default location
-
-// const styles = StyleSheet.create({
-//   container: {
-//     flex: 1,
-//     justifyContent: 'center',
-//     alignItems: 'center',
-//     backgroundColor: 'white',
-//     paddingVertical: 20,
-//   },
-//   title: {
-//     fontSize: 24,
-//     fontWeight: 'bold',
-//   },
-//   map: {
-//     width: '90%',
-//     height: 300,
-//     marginVertical: 12,
-//     borderRadius: 12,
-//   },
-//   locationInfo: {
-//     marginVertical: 10,
-//     alignItems: 'center',
-//   },
-//   locationText: {
-//     fontSize: 16,
-//     marginVertical: 2,
-//   },
-//   button: {
-//     backgroundColor: '#4e4a4a',
-//     borderWidth: 5,
-//     borderColor: 'black',
-//     padding: 15,
-//     margin: 10,
-//     borderRadius: 5,
-//   },
-//   buttonText: {
-//     fontSize: 16,
-//     fontWeight: 'bold',
-//     color: 'white',
-//   },
-// })
-
-
-
-
-
-// import { Alert, Pressable, StyleSheet, Text, View } from 'react-native'
-// import React, { useEffect, useState } from 'react'
-// import * as ExpoLocation from 'expo-location'
-// import MapView, { Marker } from 'react-native-maps'
-
-
-// type LocationCoords = {
-//   latitude: number
-//   longitude: number
-// }
-
-// const defaultRegion = {
-//   latitude: 20.5937,
-//   longitude: 78.9629,
-//   latitudeDelta: 0.05,
-//   longitudeDelta: 0.05,
-// }
-
-// const Location = () => {
-//   const [location, setLocation] = useState<LocationCoords | null>(null)
-//   const [region, setRegion] = useState(defaultRegion)
-
-//   const getCurrentLocation = async () => {
-//     const { status } = await ExpoLocation.requestForegroundPermissionsAsync()
-//     if (status !== 'granted') {
-//       Alert.alert('Access Denied', 'Permission to access location was denied')
-//       return
-//     }
-
-//     const currentLocation = await ExpoLocation.getCurrentPositionAsync({
-//       accuracy: ExpoLocation.Accuracy.High,
-//     })
-
-//     const coords = currentLocation.coords
-//     setLocation(coords)
-//     setRegion({
-//       latitude: coords.latitude,
-//       longitude: coords.longitude,
-//       latitudeDelta: 0.01,
-//       longitudeDelta: 0.01,
-//     })
-//   }
-
-//   useEffect(() => {
-//     void getCurrentLocation()
-//   }, [])
-
-//   return (
-//     <View style={styles.container}>
-//       <Text style={styles.title}>Location</Text>
-//       <MapView style={styles.map} region={region} showsUserLocation>
-//         {location ? (
-//           <Marker
-//             coordinate={{
-//               latitude: location.latitude,
-//               longitude: location.longitude,
-//             }}
-//             title="Your Location"
-//             description="Current position"
-//           />
-//         ) : null}
-//       </MapView>
-
-//       {location && (
-//         <View style={styles.locationInfo}>
-//           <Text style={styles.locationText}>
-//             Latitude: {location.latitude.toFixed(4)}
-//           </Text>
-//           <Text style={styles.locationText}>
-//             Longitude: {location.longitude.toFixed(4)}
-//           </Text>
-//         </View>
-//       )}
-
-//       <Pressable style={styles.button} onPress={() => void getCurrentLocation()}>
-//         <Text style={styles.buttonText}>Get Current Location</Text>
-//       </Pressable>
-//     </View>
-//   )
-// }
-
-// export default Location
-
-// const styles = StyleSheet.create({
-//   container: {
-//     flex: 1,
-//     justifyContent: 'center',
-//     alignItems: 'center',
-//     backgroundColor: 'white',
-//     paddingVertical: 20,
-//   },
-//   title: {
-//     fontSize: 24,
-//     fontWeight: 'bold',
-//   },
-//   map: {
-//     width: '90%',
-//     height: 300,
-//     marginVertical: 12,
-//     borderRadius: 12,
-//   },
-//   locationInfo: {
-//     marginVertical: 10,
-//     alignItems: 'center',
-//   },
-//   locationText: {
-//     fontSize: 16,
-//     marginVertical: 2,
-//   },
-//   button: {
-//     backgroundColor: '#4e4a4a',
-//     borderWidth: 5,
-//     borderColor: 'black',
-//     padding: 15,
-//     margin: 10,
-//     borderRadius: 5,
-//   },
-//   buttonText: {
-//     fontSize: 16,
-//     fontWeight: 'bold',
-//     color: 'white',
-//   },
-// })
