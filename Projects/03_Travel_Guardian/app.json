@@ -1,11 +1,11 @@
 {
   "expo": {
-    "name": "Assignments",
-    "slug": "Assignments",
+    "name": "03_Travel_Guardian",
+    "slug": "03_Travel_Guardian",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "assignments",
+    "scheme": "03travelguardian",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {

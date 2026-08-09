@@ -1,67 +1,104 @@
-import { Button, Pressable, StyleSheet, Text, View } from 'react-native'
-import React, { useState } from 'react'
-import * as Location from "expo-location"
+import React, { useState } from 'react';
+import { Button, Pressable, StyleSheet, Text, View, TextInput, Alert, ScrollView } from 'react-native';
+import * as Location from "expo-location";
 
-const locationScreen = () => {
+const LocationScreen = () => {
   const [currLocation, setCurrLocation] = useState(null);
   const [lastPosition, setLastPosition] = useState(null);
   const [currAddress, setCurrAddress] = useState(null);
+  const [searchText, setSearchText] = useState("");
+  const [searchedCoords, setSearchedCoords] = useState(null);
 
   const handleGrantPermission = async () => {
     const permission = await Location.requestForegroundPermissionsAsync();
     if (!permission.granted) {
-      alert("Please give permission first")
+      Alert.alert("Permission Denied", "Please give permission first");
+    } else {
+      Alert.alert("Success", "Permission granted!");
     }
-  }
+  };
 
   const handleGetCurrentLocation = async () => {
     const isGranted = await Location.getForegroundPermissionsAsync();
     if (!isGranted.granted) {
-      alert("Give permission first");
-      return; 
+      Alert.alert("Permission Required", "Give permission first");
+      return;
     }
-    
-    const currentLocation = await Location.getCurrentPositionAsync();
-    if (currentLocation) {
-      console.log(currentLocation);
-      setCurrLocation(currentLocation);
-      
-
-      const currentAddress = await Location.reverseGeocodeAsync({
-        latitude: currentLocation.coords.latitude,
-        longitude: currentLocation.coords.longitude
-      });
-      
-      if (currentAddress && currentAddress.length > 0) {
-        console.log(currentAddress);
-        setCurrAddress(currentAddress);
+    try {
+      const currentLocation = await Location.getCurrentPositionAsync({});
+      if (currentLocation) {
+        setCurrLocation(currentLocation);
+        const currentAddress = await Location.reverseGeocodeAsync({
+          latitude: currentLocation.coords.latitude,
+          longitude: currentLocation.coords.longitude
+        });
+        if (currentAddress && currentAddress.length > 0) {
+          setCurrAddress(currentAddress);
+        }
       }
+    } catch (error) {
+      Alert.alert("Error", "Could not fetch current location");
     }
-  }
+  };
 
   const handleGetLastLocation = async () => {
     const isGranted = await Location.getForegroundPermissionsAsync();
     if (!isGranted.granted) {
-      alert("Give permission first");
+      Alert.alert("Permission Required", "Give permission first");
       return;
     }
-    
-    const lastLocation = await Location.getLastKnownPositionAsync();
+    const lastLocation = await Location.getLastKnownPositionAsync({});
     if (lastLocation) {
-      console.log(lastLocation);
       setLastPosition(lastLocation);
     } else {
-      alert("No last known location found on this device");
+      Alert.alert("Not Found", "No last known location found on this device");
     }
-  }
+  };
+
+  const handleSearchLocation = async () => {
+    if (!searchText.trim()) {
+      Alert.alert("Empty Search", "Please enter an address to search.");
+      return;
+    }
+    const isGranted = await Location.getForegroundPermissionsAsync();
+    if (!isGranted.granted) {
+      Alert.alert("Permission Required", "Give permission first");
+      return;
+    }
+
+    const results = await Location.geocodeAsync(searchText);
+    if (results && results.length > 0) {
+      setSearchedCoords(results[0]);
+    } else {
+      Alert.alert("No Results", "No coordinates found for this address.");
+    }
+  };
 
   return (
-    <View style={{ flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: "white" }}>
-      <Text style={{ fontSize: 30, fontWeight: 'bold',justifyContent: "center", alignItems: "center"}}>My Location Dashboard</Text>
+    <ScrollView contentContainerStyle={styles.container}>
+      <Text style={styles.title}>My Location Dashboard</Text>
+
+      <TextInput
+        style={styles.input}
+        placeholder="Enter address to search"
+        value={searchText}
+        onChangeText={(text) => setSearchText(text)}
+      />
+
+      <Pressable style={styles.button} onPress={handleSearchLocation}>
+        <Text style={styles.buttonText}>Search Address Coordinates</Text>
+      </Pressable>
+
+      {searchedCoords && (
+        <View style={styles.infoBox}>
+          <Text style={styles.header}>Searched Address Coordinates</Text>
+          <Text>Latitude: {searchedCoords.latitude}</Text>
+          <Text>Longitude: {searchedCoords.longitude}</Text>
+        </View>
+      )}
 
       {currLocation && (
         <View style={styles.infoBox}>
-          <Text style={styles.title}>Current Location:</Text>
           <Text style={styles.header}>Current Location</Text>
           <Text>Longitude: {currLocation.coords.longitude}</Text>
           <Text>Latitude: {currLocation.coords.latitude}</Text>
@@ -75,7 +112,6 @@ const locationScreen = () => {
 
       {currAddress && (
         <View style={styles.infoBox}>
-          <Text style={styles.title}>Current Address:</Text>
           <Text style={styles.header}>Current Address</Text>
           <Text>Name: {currAddress[0].name}</Text>
           <Text>Street: {currAddress[0].street || "N/A"}</Text>
@@ -89,7 +125,6 @@ const locationScreen = () => {
 
       {lastPosition ? (
         <View style={styles.infoBox}>
-          <Text style={styles.title}>Last Location:</Text>
           <Text style={styles.header}>Last Location</Text>
           <Text>Longitude: {lastPosition.coords.longitude}</Text>
           <Text>Latitude: {lastPosition.coords.latitude}</Text>
@@ -99,26 +134,35 @@ const locationScreen = () => {
         <Text style={{ marginTop: 10, color: 'gray' }}>No Last Known Location Found</Text>
       )}
 
-
-      <Pressable style={styles.button} onPress={handleGrantPermission}>
+      <Pressable style={[styles.button, { marginTop: 20 }]} onPress={handleGrantPermission}>
         <Text style={styles.buttonText}>Grant Permission</Text>
       </Pressable>
+
       <Pressable style={styles.button} onPress={handleGetCurrentLocation}>
         <Text style={styles.buttonText}>Get Current Location</Text>
       </Pressable>
+
       <Pressable style={styles.button} onPress={handleGetLastLocation}>
         <Text style={styles.buttonText}>Get Last Known Location</Text>
       </Pressable>
+
       <Pressable style={styles.button} onPress={handleGetCurrentLocation}>
         <Text style={styles.buttonText}>Refresh Location</Text>
       </Pressable>
-    </View>
-  )
-}
+    </ScrollView>
+  );
+};
 
-export default locationScreen
+export default LocationScreen;
 
 const styles = StyleSheet.create({
+  container: {
+    flexGrow: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "white",
+    paddingVertical: 40,
+  },
   infoBox: {
     marginTop: 15,
     padding: 10,
@@ -129,7 +173,8 @@ const styles = StyleSheet.create({
   },
   header: {
     fontWeight: 'bold',
-    marginBottom: 5
+    marginBottom: 5,
+    fontSize: 16
   },
   button: {
     backgroundColor: '#4e4a4a',
@@ -146,16 +191,18 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: 'white',
   },
-  container: {
-    flex: 1,
-    justify: 'center',
-    alignItems: 'center',
-    backgroundColor: 'white',
-    paddingVertical: 20,
-  },
   title: {
-    fontSize: 24,
+    fontSize: 26,
     fontWeight: 'bold',
     marginBottom: 20,
+    textAlign: 'center'
   },
-})
+  input: {
+    borderWidth: 1,
+    borderColor: '#ccc',
+    width: '80%',
+    padding: 10,
+    borderRadius: 5,
+    marginBottom: 10
+  }
+});
