@@ -1,18 +1,18 @@
 import React, { useState } from 'react';
-import { StyleSheet, Text, View, Pressable, Alert, ScrollView, SafeAreaView } from 'react-native';
+import { StyleSheet, Text, View, Pressable, Alert, ScrollView } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function ScannerTab() {
   const [permission, requestPermission] = useCameraPermissions();
   const [scanned, setScanned] = useState(false);
   const [scannedData, setScannedData] = useState(null);
-  const [scanHistory, setScanHistory] = useState([]);
 
   if (!permission) {
     return (
-      <SafeAreaView style={styles.centerContainer}>
+      <View style={styles.centerContainer}>
         <Text style={styles.infoText}>Loading permissions...</Text>
-      </SafeAreaView>
+      </View>
     );
   }
 
@@ -32,8 +32,7 @@ export default function ScannerTab() {
     setScanned(true);
     const result = { type, data, timestamp: new Date().toLocaleTimeString() };
     setScannedData(result);
-    setScanHistory((prev) => [result, ...prev]);
-
+    console.log(result);
     Alert.alert('Code Scanned!', `Type: ${type}\nData: ${data}`);
   };
 
@@ -47,14 +46,12 @@ export default function ScannerTab() {
       <ScrollView contentContainerStyle={styles.container}>
         <Text style={styles.headerTitle}>Part 3: QR & Barcode Scanner</Text>
 
-        {/* Real-time Status Badge */}
         <View style={[styles.statusBadge, scanned ? styles.lockedBadge : styles.activeBadge]}>
           <Text style={styles.statusText}>
-            Camera Status: {scanned ? '🔒 Scan Locked' : '🟢 Active Scanning'}
+            Camera Status: {scanned ? 'Scan Locked' : 'Active Scanning'}
           </Text>
         </View>
 
-        {/* Camera View */}
         <View style={styles.cameraWrapper}>
           <CameraView
             style={styles.camera}
@@ -72,9 +69,9 @@ export default function ScannerTab() {
                 'aztec',
               ],
             }}
-            onBarcodeScanned={scanned ? undefined : handleBarcodeScanned}
+            onBarcodeScanned={handleBarcodeScanned}
           />
-          <View style={styles.scanTargetFrame} pointerEvents="none">
+          <View style={styles.scanTargetFrame}>
             <View style={[styles.corner, styles.topLeft]} />
             <View style={[styles.corner, styles.topRight]} />
             <View style={[styles.corner, styles.bottomLeft]} />
@@ -82,14 +79,12 @@ export default function ScannerTab() {
           </View>
         </View>
 
-        {/* Reset Scanner Control */}
         {scanned && (
           <Pressable style={styles.resetBtn} onPress={handleResetScanner}>
             <Text style={styles.resetBtnText}>🔄 RESET SCANNER (SCAN AGAIN)</Text>
           </Pressable>
         )}
 
-        {/* Result Card */}
         {scannedData && (
           <View style={styles.resultCard}>
             <Text style={styles.resultHeader}>Latest Scanned Code</Text>
@@ -105,21 +100,6 @@ export default function ScannerTab() {
               <Text style={styles.resultLabel}>Time:</Text>
               <Text style={styles.resultValue}>{scannedData.timestamp}</Text>
             </View>
-          </View>
-        )}
-
-        {/* History */}
-        {scanHistory.length > 0 && (
-          <View style={styles.historyContainer}>
-            <Text style={styles.subTitle}>Recent Scan History</Text>
-            {scanHistory.slice(0, 5).map((item, idx) => (
-              <View key={idx} style={styles.historyItem}>
-                <Text style={styles.historyText}>
-                  [{item.type}] {item.data}
-                </Text>
-                <Text style={styles.historyTime}>{item.timestamp}</Text>
-              </View>
-            ))}
           </View>
         )}
       </ScrollView>

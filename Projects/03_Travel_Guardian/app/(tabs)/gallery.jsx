@@ -2,29 +2,7 @@ import React, { useState } from 'react';
 import { StyleSheet, Text, View, Pressable, Image, ScrollView, Modal, TextInput, Alert, SafeAreaView } from 'react-native';
 
 export default function GalleryTab() {
-  const [galleryItems, setGalleryItems] = useState([
-    {
-      id: '1',
-      name: 'Mountain Trek.jpg',
-      uri: 'https://picsum.photos/400/300?random=1',
-      isFavorite: true,
-      timestamp: '2026-08-09 10:30 AM',
-    },
-    {
-      id: '2',
-      name: 'Beach Sunset.jpg',
-      uri: 'https://picsum.photos/400/300?random=2',
-      isFavorite: false,
-      timestamp: '2026-08-08 06:15 PM',
-    },
-    {
-      id: '3',
-      name: 'Historic Temple.jpg',
-      uri: 'https://picsum.photos/400/300?random=3',
-      isFavorite: true,
-      timestamp: '2026-08-07 02:45 PM',
-    },
-  ]);
+  const [galleryItems, setGalleryItems] = useState([]);
 
   const [filterFavorite, setFilterFavorite] = useState(false);
   const [editingItem, setEditingItem] = useState(null);
@@ -86,7 +64,7 @@ export default function GalleryTab() {
             onPress={() => setFilterFavorite(true)}
           >
             <Text style={[styles.filterText, filterFavorite && styles.activeFilterText]}>
-              ❤️ Favorites ({galleryItems.filter((i) => i.isFavorite).length})
+              Favorites ({galleryItems.filter((i) => i.isFavorite).length})
             </Text>
           </Pressable>
         </View>

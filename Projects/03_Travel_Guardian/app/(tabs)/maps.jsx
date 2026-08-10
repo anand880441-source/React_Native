@@ -1,29 +1,76 @@
-import React, { useState, useEffect } from 'react';
-import { StyleSheet, Text, View, Pressable, ScrollView, TextInput, Alert, Linking, Share, SafeAreaView } from 'react-native';
+import { View, Text, Button, Alert, StyleSheet, TextInput, ScrollView, Share } from 'react-native';
 import * as Location from 'expo-location';
+import MapView, { Marker } from 'react-native-maps';
+import { useState, useEffect } from 'react';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function MapsTab() {
+
   const [currentCoords, setCurrentCoords] = useState(null);
+  const [searchedLocation, setSearchedLocation] = useState(null); 
+  const [locationHistory, setLocationHistory] = useState([]);
+  const [searchQuery, setSearchQuery] = useState('');
   const [targetLat, setTargetLat] = useState('');
   const [targetLon, setTargetLon] = useState('');
   const [calculatedDistance, setCalculatedDistance] = useState(null);
 
-  const [searchQuery, setSearchQuery] = useState('');
-  const [locationHistory, setLocationHistory] = useState([]);
+  const activeLocation = searchedLocation || currentCoords;
 
   useEffect(() => {
     (async () => {
       const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status === 'granted') {
-        const loc = await Location.getCurrentPositionAsync({});
+      if (status !== 'granted') {
+        Alert.alert("Permission Denied", "Location permission is required.");
+        return;
+      }
+      const loc = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.High,
+      });
+      if (loc) {
         setCurrentCoords(loc.coords);
+        console.log("Current Coords:", loc.coords);
       }
     })();
   }, []);
 
-  const calculateDistance = () => {
-    if (!currentCoords || !targetLat || !targetLon) {
-      Alert.alert('Input Error', 'Please enter target Latitude and Longitude.');
+  const handleSearchLocation = async () => {
+    if (!searchQuery.trim()) {
+      Alert.alert("Input Required", "Please enter an address to search.");
+      return;
+    }
+    try {
+      const results = await Location.geocodeAsync(searchQuery);
+      if (results && results.length > 0) {
+        const found = results[0];
+        setSearchedLocation({ latitude: found.latitude, longitude: found.longitude });
+
+        const newRecord = {
+          id: Date.now().toString(),
+          query: searchQuery,
+          lat: found.latitude,
+          lon: found.longitude,
+        };
+        setLocationHistory((prev) => [newRecord, ...prev]);
+
+        setTargetLat(found.latitude.toString());
+        setTargetLon(found.longitude.toString());
+
+        console.log("Geocoded Result:", found);
+      } else {
+        Alert.alert("Not Found", "No location results for this address.");
+      }
+    } catch (error) {
+      Alert.alert("Search Error", error.message);
+    }
+  };
+
+  const handleCalculateDistance = () => {
+    if (!currentCoords) {
+      Alert.alert("No Location", "Please wait for current location to load.");
+      return;
+    }
+    if (!targetLat || !targetLon) {
+      Alert.alert("Input Error", "Please enter target Latitude and Longitude.");
       return;
     }
 
@@ -33,173 +80,230 @@ export default function MapsTab() {
     const lon2 = parseFloat(targetLon);
 
     if (isNaN(lat2) || isNaN(lon2)) {
-      Alert.alert('Invalid Input', 'Latitude and Longitude must be numeric.');
+      Alert.alert("Invalid Input", "Latitude and Longitude must be numbers.");
       return;
     }
 
-    const R = 6371;
+    const R = 6371; // Earth radius in km
     const dLat = ((lat2 - lat1) * Math.PI) / 180;
     const dLon = ((lon2 - lon1) * Math.PI) / 180;
     const a =
       Math.sin(dLat / 2) * Math.sin(dLat / 2) +
       Math.cos((lat1 * Math.PI) / 180) *
-        Math.cos((lat2 * Math.PI) / 180) *
-        Math.sin(dLon / 2) *
-        Math.sin(dLon / 2);
+      Math.cos((lat2 * Math.PI) / 180) *
+      Math.sin(dLon / 2) *
+      Math.sin(dLon / 2);
     const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
     const dist = R * c;
 
     setCalculatedDistance(dist.toFixed(2));
+    console.log("Distance:", dist.toFixed(2), "km");
   };
 
-  const openInGoogleMaps = (lat, lon) => {
-    const url = `https://www.google.com/maps/search/?api=1&query=${lat},${lon}`;
-    Linking.openURL(url).catch((err) => Alert.alert('Error', 'Unable to open Maps: ' + err.message));
-  };
-
-  const shareCoordinates = async () => {
-    if (!currentCoords) return;
+  const handleShareCoordinates = async () => {
+    if (!currentCoords) {
+      Alert.alert("No Location", "Please wait for current location to load.");
+      return;
+    }
     try {
       await Share.share({
-        message: `My Location: Lat ${currentCoords.latitude}, Lon ${currentCoords.longitude} (https://maps.google.com/?q=${currentCoords.latitude},${currentCoords.longitude})`,
+        message: `My Location:\nLatitude: ${currentCoords.latitude}\nLongitude: ${currentCoords.longitude}\n\nMaps: https://maps.google.com/?q=${currentCoords.latitude},${currentCoords.longitude}`,
       });
     } catch (error) {
-      Alert.alert('Share Error', error.message);
+      Alert.alert("Share Error", error.message);
     }
   };
 
-  const handleSearchLocation = async () => {
-    if (!searchQuery.trim()) return;
-    try {
-      const results = await Location.geocodeAsync(searchQuery);
-      if (results.length > 0) {
-        const found = results[0];
-        const newRecord = {
-          query: searchQuery,
-          lat: found.latitude,
-          lon: found.longitude,
-          time: new Date().toLocaleTimeString(),
-        };
-        setLocationHistory((prev) => [newRecord, ...prev]);
-        setTargetLat(found.latitude.toString());
-        setTargetLon(found.longitude.toString());
-        Alert.alert('Found Location', `Address: ${searchQuery}\nLat: ${found.latitude}\nLon: ${found.longitude}`);
-      } else {
-        Alert.alert('Not Found', 'No location results found.');
-      }
-    } catch (e) {
-      Alert.alert('Search Error', e.message);
-    }
+  const handleSelectHistory = (item) => {
+    setSearchedLocation({ latitude: item.lat, longitude: item.lon });
+    setTargetLat(item.lat.toString());
+    setTargetLon(item.lon.toString());
   };
 
   return (
     <SafeAreaView style={styles.safeArea}>
       <ScrollView contentContainerStyle={styles.container}>
-        <Text style={styles.headerTitle}>Part 6: Maps & Utilities</Text>
+        <Text style={styles.headerText}>Part 6: Maps & Utilities</Text>
 
-        {currentCoords && (
-          <View style={styles.card}>
-            <Text style={styles.cardTitle}>Current Coordinates Action Bar</Text>
-            <Text style={styles.smallText}>
-              Lat: {currentCoords.latitude.toFixed(6)} | Lon: {currentCoords.longitude.toFixed(6)}
-            </Text>
+        {activeLocation ? (
+          <View style={styles.mapContainer}>
+            <MapView
+              style={styles.map}
+              region={{
+                latitude: activeLocation.latitude,
+                longitude: activeLocation.longitude,
+                latitudeDelta: 0.01,
+                longitudeDelta: 0.01,
+              }}
+              showsUserLocation={true}
+            >
+              {currentCoords && (
+                <Marker
+                  coordinate={{
+                    latitude: currentCoords.latitude,
+                    longitude: currentCoords.longitude,
+                  }}
+                  title="My Location"
+                  description="Your current position"
+                  pinColor="blue"
+                />
+              )}
 
-            <View style={styles.btnRow}>
-              <Pressable style={styles.btn} onPress={() => openInGoogleMaps(currentCoords.latitude, currentCoords.longitude)}>
-                <Text style={styles.btnText}>🗺 Google Maps</Text>
-              </Pressable>
-
-              <Pressable style={[styles.btn, styles.shareBtn]} onPress={shareCoordinates}>
-                <Text style={styles.btnText}>🔗 Share Location</Text>
-              </Pressable>
-            </View>
+              {searchedLocation && (
+                <Marker
+                  coordinate={{
+                    latitude: searchedLocation.latitude,
+                    longitude: searchedLocation.longitude,
+                  }}
+                  title="Searched Location"
+                  description={searchQuery}
+                  pinColor="red"
+                />
+              )}
+            </MapView>
+          </View>
+        ) : (
+          <View style={styles.mapPlaceholder}>
+            <Text style={styles.placeholderText}>Fetching location for Map...</Text>
           </View>
         )}
 
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>Distance Calculator (Haversine)</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="Target Latitude (e.g., 28.6139)"
-            placeholderTextColor="#888"
-            keyboardType="numeric"
-            value={targetLat}
-            onChangeText={setTargetLat}
-          />
-          <TextInput
-            style={styles.input}
-            placeholder="Target Longitude (e.g., 77.2090)"
-            placeholderTextColor="#888"
-            keyboardType="numeric"
-            value={targetLon}
-            onChangeText={setTargetLon}
-          />
+        {currentCoords && (
+          <View style={styles.infoBox}>
+            <Text style={styles.infoTitle}>Current Location:</Text>
+            <Text>Latitude : {currentCoords.latitude.toFixed(6)}</Text>
+            <Text>Longitude : {currentCoords.longitude.toFixed(6)}</Text>
+          </View>
+        )}
 
-          <Pressable style={styles.btn} onPress={calculateDistance}>
-            <Text style={styles.btnText}>📐 Calculate Distance</Text>
-          </Pressable>
+        <Text style={styles.sectionTitle}>Share Coordinates</Text>
+        <Button title="Share My Coordinates" onPress={handleShareCoordinates} />
 
-          {calculatedDistance !== null && (
-            <View style={styles.resultBox}>
-              <Text style={styles.resultText}>Distance: {calculatedDistance} km</Text>
-            </View>
-          )}
-        </View>
+        <Text style={styles.sectionTitle}>Search Location by Address</Text>
+        <TextInput
+          style={styles.input}
+          placeholder="Enter address or city name..."
+          value={searchQuery}
+          onChangeText={setSearchQuery}
+        />
+        <Button title="Search Location" onPress={handleSearchLocation} />
 
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>Search Location by Address</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="Search address or landmark..."
-            placeholderTextColor="#888"
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-          />
-          <Pressable style={styles.btn} onPress={handleSearchLocation}>
-            <Text style={styles.btnText}>🔍 Search Location</Text>
-          </Pressable>
-        </View>
+        <Text style={styles.sectionTitle}>Distance Calculator (Haversine)</Text>
+        <TextInput
+          style={styles.input}
+          placeholder="Target Latitude (e.g., 28.6139)"
+          keyboardType="numeric"
+          value={targetLat}
+          onChangeText={setTargetLat}
+        />
+        <TextInput
+          style={styles.input}
+          placeholder="Target Longitude (e.g., 77.2090)"
+          keyboardType="numeric"
+          value={targetLon}
+          onChangeText={setTargetLon}
+        />
+        <Button title="Calculate Distance" onPress={handleCalculateDistance} />
+
+        {calculatedDistance !== null && (
+          <View style={[styles.infoBox, styles.resultBox]}>
+            <Text style={styles.resultText}>Distance: {calculatedDistance} km</Text>
+          </View>
+        )}
 
         {locationHistory.length > 0 && (
-          <View style={styles.card}>
-            <Text style={styles.cardTitle}>Recent Location History</Text>
-            {locationHistory.map((item, idx) => (
-              <View key={idx} style={styles.historyRow}>
+          <View>
+            <Text style={styles.sectionTitle}>Recent Location History</Text>
+            {locationHistory.map((item) => (
+              <View key={item.id} style={styles.historyRow}>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.historyQuery}>{item.query}</Text>
                   <Text style={styles.historyCoords}>
                     {item.lat.toFixed(4)}, {item.lon.toFixed(4)}
                   </Text>
                 </View>
-                <Pressable style={styles.smallMapBtn} onPress={() => openInGoogleMaps(item.lat, item.lon)}>
-                  <Text style={styles.smallMapBtnText}>Maps</Text>
-                </Pressable>
+                <Button title="View" onPress={() => handleSelectHistory(item)} />
               </View>
             ))}
           </View>
         )}
+
       </ScrollView>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: '#f5f5f5' },
-  container: { padding: 16, alignItems: 'center' },
-  headerTitle: { fontSize: 20, fontWeight: 'bold', marginBottom: 12, color: '#333' },
-  card: { width: '100%', backgroundColor: '#fff', padding: 14, borderRadius: 10, marginBottom: 14 },
-  cardTitle: { fontSize: 15, fontWeight: 'bold', color: '#333', marginBottom: 6 },
-  smallText: { fontSize: 12, color: '#666', marginBottom: 10 },
-  btnRow: { flexDirection: 'row', gap: 10, marginTop: 8 },
-  btn: { flex: 1, backgroundColor: '#2196F3', padding: 11, borderRadius: 8, alignItems: 'center' },
-  shareBtn: { backgroundColor: '#FF9800' },
-  btnText: { color: '#fff', fontSize: 12, fontWeight: 'bold' },
-  input: { backgroundColor: '#f0f0f0', padding: 10, borderRadius: 6, marginBottom: 8, fontSize: 13, color: '#000' },
-  resultBox: { marginTop: 10, backgroundColor: '#e8f5e9', padding: 10, borderRadius: 6, alignItems: 'center' },
-  resultText: { fontSize: 15, fontWeight: 'bold', color: '#2e7d32' },
-  historyRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 6, borderBottomWidth: 1, borderColor: '#eee' },
+  safeArea: { flex: 1, backgroundColor: '#fff' },
+  container: { padding: 20 },
+  headerText: {
+    fontSize: 22,
+    fontWeight: 'bold',
+    textAlign: 'center',
+    marginBottom: 14,
+  },
+  mapContainer: {
+    width: '100%',
+    height: 280,
+    borderRadius: 12,
+    overflow: 'hidden',
+    marginBottom: 14,
+    borderWidth: 1,
+    borderColor: '#ccc',
+  },
+  map: { width: '100%', height: '100%' },
+  mapPlaceholder: {
+    width: '100%',
+    height: 200,
+    backgroundColor: '#f0f0f0',
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 14,
+  },
+  placeholderText: { color: '#888', fontSize: 14 },
+  infoBox: {
+    marginVertical: 8,
+    padding: 12,
+    backgroundColor: '#f0f0f0',
+    borderRadius: 8,
+    gap: 4,
+  },
+  resultBox: {
+    backgroundColor: '#e8f5e9',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#4caf50',
+  },
+  resultText: { fontSize: 16, fontWeight: 'bold', color: '#2e7d32' },
+  infoTitle: { fontWeight: 'bold', fontSize: 14, marginBottom: 4, color: '#1a1a1a' },
+  sectionTitle: {
+    fontSize: 15,
+    fontWeight: 'bold',
+    marginTop: 16,
+    marginBottom: 8,
+    color: '#1a1a1a',
+    borderLeftWidth: 4,
+    borderLeftColor: '#2196F3',
+    paddingLeft: 8,
+  },
+  input: {
+    backgroundColor: '#f0f0f0',
+    padding: 10,
+    borderRadius: 6,
+    marginBottom: 8,
+    fontSize: 13,
+    color: '#000',
+  },
+  historyRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    backgroundColor: '#f0f0f0',
+    borderRadius: 8,
+    marginBottom: 6,
+  },
   historyQuery: { fontSize: 13, fontWeight: 'bold', color: '#333' },
-  historyCoords: { fontSize: 11, color: '#777' },
-  smallMapBtn: { backgroundColor: '#4caf50', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 4 },
-  smallMapBtnText: { color: '#fff', fontSize: 11, fontWeight: 'bold' },
+  historyCoords: { fontSize: 11, color: '#777', marginTop: 2 },
 });

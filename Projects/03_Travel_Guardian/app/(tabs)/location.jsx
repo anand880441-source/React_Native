@@ -1,240 +1,296 @@
-import React, { useState, useEffect } from 'react';
-import { StyleSheet, Text, View, Pressable, ScrollView, TextInput, Alert, ActivityIndicator, SafeAreaView } from 'react-native';
+import { View, Text, Button, Alert, StyleSheet, ScrollView } from 'react-native';
 import * as Location from 'expo-location';
+import { useState, useRef, useEffect } from 'react';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function LocationTab() {
-  const [permission, setPermission] = useState(null);
+
   const [currentLocation, setCurrentLocation] = useState(null);
-  const [lastKnownLocation, setLastKnownLocation] = useState(null);
+  const [lastLocation, setLastLocation] = useState(null);
+  const [liveLocation, setLiveLocation] = useState(null);
   const [address, setAddress] = useState(null);
-  const [loading, setLoading] = useState(false);
-
-  const [isTracking, setIsTracking] = useState(false);
-  const [locationSubscription, setLocationSubscription] = useState(null);
-  const [headingSubscription, setHeadingSubscription] = useState(null);
-  const [heading, setHeading] = useState(null);
-
-  const [searchAddress, setSearchAddress] = useState('');
   const [geocodedResult, setGeocodedResult] = useState(null);
+  const [heading, setHeading] = useState(null);
+  const [isTracking, setIsTracking] = useState(false);
 
-  useEffect(() => {
-    let locSub = null;
-    let headSub = null;
+  const liveRef = useRef(null);
+  const headingRef = useRef(null);
 
-    (async () => {
-      const { status } = await Location.requestForegroundPermissionsAsync();
-      setPermission(status === 'granted');
-      if (status === 'granted') {
-        const lastLoc = await Location.getLastKnownPositionAsync();
-        if (lastLoc) setLastKnownLocation(lastLoc.coords);
-        fetchCurrentLocation();
-      }
-    })();
+  const handleGrantPermission = async () => {
+    const permission = await Location.requestForegroundPermissionsAsync();
+    if (!permission?.granted) {
+      Alert.alert("Permission Denied!", "Please give permission to access these features!!");
+      return;
+    }
+    Alert.alert("Permission Granted!", "You can now use all location features.");
+  };
 
-    return () => {
-      if (locSub) locSub.remove();
-      if (headSub) headSub.remove();
-    };
-  }, []);
-
-  const fetchCurrentLocation = async () => {
-    setLoading(true);
+  const handleGetCurrentLocation = async () => {
+    const checkPermission = await Location.getForegroundPermissionsAsync();
+    if (!checkPermission?.granted) {
+      Alert.alert("Permission Denied!", "Please give permission to access these features!!");
+      return;
+    }
     try {
-      const location = await Location.getCurrentPositionAsync({
+      const currentLoc = await Location.getCurrentPositionAsync({
         accuracy: Location.Accuracy.High,
       });
-      setCurrentLocation(location.coords);
-      reverseGeocode(location.coords.latitude, location.coords.longitude);
-    } catch (e) {
-      Alert.alert('Location Error', e.message);
-    } finally {
-      setLoading(false);
+      if (currentLoc) {
+        setCurrentLocation(currentLoc);
+        console.log("Current Location:", currentLoc);
+      }
+    } catch (error) {
+      Alert.alert("Error", `Unable to fetch current location: ${error.message}`);
     }
   };
 
-  const reverseGeocode = async (lat, lon) => {
+  const handleGetLastLocation = async () => {
+    const checkPermission = await Location.getForegroundPermissionsAsync();
+    if (!checkPermission?.granted) {
+      Alert.alert("Permission Denied!", "Please give permission to access these features!!");
+      return;
+    }
     try {
-      const res = await Location.reverseGeocodeAsync({ latitude: lat, longitude: lon });
-      if (res && res.length > 0) {
-        const item = res[0];
-        setAddress(`${item.name || ''} ${item.street || ''}, ${item.city || item.subregion || ''}, ${item.region || ''}, ${item.country || ''}`.trim());
+      const lastLoc = await Location.getLastKnownPositionAsync();
+      if (lastLoc) {
+        setLastLocation(lastLoc);
+        console.log("Last Known Location:", lastLoc);
+      } else {
+        Alert.alert("Not Found", "No last known location cached on this device.");
       }
-    } catch (e) {
-      console.log('Reverse geocode error:', e);
+    } catch (error) {
+      Alert.alert("Error", "Unable to fetch last location!!");
+    }
+  };
+
+  const handleTrackLocation = async () => {
+    const checkPermission = await Location.getForegroundPermissionsAsync();
+    if (!checkPermission?.granted) {
+      Alert.alert("Permission Denied!", "Please give permission to access these features!!");
+      return;
+    }
+    try {
+      setIsTracking(true);
+
+      liveRef.current = await Location.watchPositionAsync(
+        { accuracy: Location.Accuracy.High, timeInterval: 2000, distanceInterval: 1 },
+        (resLocation) => {
+          setLiveLocation(resLocation);
+          console.log("Live Location Update:", resLocation);
+        }
+      );
+
+      headingRef.current = await Location.watchHeadingAsync((headData) => {
+        setHeading(Math.round(headData.trueHeading || headData.magHeading));
+      });
+    } catch (error) {
+      setIsTracking(false);
+      Alert.alert("Error!", "Unable to start location tracking!");
+    }
+  };
+
+  const handleStopTracker = () => {
+    if (liveRef.current) {
+      liveRef.current.remove();
+      liveRef.current = null;
+    }
+    if (headingRef.current) {
+      headingRef.current.remove();
+      headingRef.current = null;
+    }
+    setIsTracking(false);
+    setLiveLocation(null);
+    setHeading(null);
+  };
+
+  const handleReverseGeocode = async () => {
+    const checkPermission = await Location.getForegroundPermissionsAsync();
+    if (!checkPermission?.granted) {
+      Alert.alert("Permission Denied!", "Please give permission to access these features!!");
+      return;
+    }
+    const source = currentLocation || liveLocation;
+    if (!source) {
+      Alert.alert("No Location", "Please fetch current location first.");
+      return;
+    }
+    try {
+      const res = await Location.reverseGeocodeAsync({
+        latitude: source.coords.latitude,
+        longitude: source.coords.longitude,
+      });
+      if (res && res.length > 0) {
+        setAddress(res[0]);
+        console.log("Reverse Geocode Result:", res);
+      }
+    } catch (error) {
+      Alert.alert("Error", "Unable to get address from coordinates.");
     }
   };
 
   const handleForwardGeocode = async () => {
-    if (!searchAddress.trim()) return;
     try {
-      const res = await Location.geocodeAsync(searchAddress);
+      const res = await Location.geocodeAsync('Ahmedabad, Gujarat');
       if (res && res.length > 0) {
         setGeocodedResult(res[0]);
+        console.log("Forward Geocode Result:", res);
       } else {
-        Alert.alert('Geocode Result', 'No coordinates found.');
+        Alert.alert("Not Found", "No coordinates found.");
       }
-    } catch (e) {
-      Alert.alert('Geocode Error', e.message);
+    } catch (error) {
+      Alert.alert("Error", error.message);
     }
   };
 
-  const toggleLiveTracking = async () => {
-    if (isTracking) {
-      if (locationSubscription) locationSubscription.remove();
-      if (headingSubscription) headingSubscription.remove();
-      setLocationSubscription(null);
-      setHeadingSubscription(null);
-      setIsTracking(false);
-    } else {
-      setIsTracking(true);
-      const locSub = await Location.watchPositionAsync(
-        { accuracy: Location.Accuracy.High, timeInterval: 2000, distanceInterval: 1 },
-        (loc) => {
-          setCurrentLocation(loc.coords);
-          reverseGeocode(loc.coords.latitude, loc.coords.longitude);
-        }
-      );
-      setLocationSubscription(locSub);
+  useEffect(() => {
+    handleTrackLocation();
+    return () => {
+      if (liveRef.current) liveRef.current.remove();
+      if (headingRef.current) headingRef.current.remove();
+    };
+  }, []);
 
-      const headSub = await Location.watchHeadingAsync((headData) => {
-        setHeading(Math.round(headData.trueHeading || headData.magHeading));
-      });
-      setHeadingSubscription(headSub);
-    }
+  const getAccuracyLabel = (accuracy) => {
+    if (!accuracy) return 'Unknown';
+    if (accuracy <= 5) return `${accuracy.toFixed(1)}m (Excellent)`;
+    if (accuracy <= 15) return `${accuracy.toFixed(1)}m (Good)`;
+    if (accuracy <= 50) return `${accuracy.toFixed(1)}m (Fair)`;
+    return `${accuracy.toFixed(1)}m (Poor)`;
   };
-
-  if (permission === null) {
-    return (
-      <SafeAreaView style={styles.centerContainer}>
-        <ActivityIndicator size="large" color="#2196F3" />
-        <Text style={styles.infoText}>Requesting Location Permissions...</Text>
-      </SafeAreaView>
-    );
-  }
-
-  if (permission === false) {
-    return (
-      <SafeAreaView style={styles.centerContainer}>
-        <Text style={styles.infoText}>Location permission is denied.</Text>
-        <Pressable style={styles.btn} onPress={() => Location.requestForegroundPermissionsAsync()}>
-          <Text style={styles.btnText}>Grant Permission</Text>
-        </Pressable>
-      </SafeAreaView>
-    );
-  }
 
   return (
     <SafeAreaView style={styles.safeArea}>
       <ScrollView contentContainerStyle={styles.container}>
-        <Text style={styles.headerTitle}>Part 4 & 5: Location & Tracking</Text>
+        <Text style={styles.headerText}>Part 4 & 5: Location & Tracking</Text>
 
-        <View style={[styles.statusBadge, isTracking ? styles.trackingBadge : styles.staticBadge]}>
+        <View style={[styles.statusBadge, isTracking ? styles.activeBadge : styles.idleBadge]}>
           <Text style={styles.statusText}>
-            {isTracking ? '📡 Live Tracking ACTIVE' : '📍 Static Location View'}
+            {isTracking ? '● Live Tracking ACTIVE' : '○ Tracking Stopped'}
           </Text>
         </View>
 
-        <View style={styles.btnRow}>
-          <Pressable style={styles.btn} onPress={fetchCurrentLocation} disabled={loading}>
-            <Text style={styles.btnText}>{loading ? 'Fetching...' : '🔄 Refresh Location'}</Text>
-          </Pressable>
-
-          <Pressable style={[styles.btn, isTracking ? styles.stopBtn : styles.startBtn]} onPress={toggleLiveTracking}>
-            <Text style={styles.btnText}>{isTracking ? '⏹ Stop Tracking' : '▶ Start Tracking'}</Text>
-          </Pressable>
+        <Text style={styles.sectionTitle}>Part 4 – Location Basics</Text>
+        <View style={styles.buttonContainer}>
+          <Button title="Grant Permission" onPress={handleGrantPermission} />
+          <Button title="Get Current Location" onPress={handleGetCurrentLocation} />
+          <Button title="Get Last Known Location" onPress={handleGetLastLocation} />
+          <Button title="Refresh Location" onPress={handleGetCurrentLocation} />
         </View>
 
-        {currentLocation ? (
-          <View style={styles.card}>
-            <Text style={styles.cardTitle}>Current Location Details</Text>
-            <View style={styles.row}>
-              <Text style={styles.label}>Latitude:</Text>
-              <Text style={styles.value}>{currentLocation.latitude.toFixed(6)}°</Text>
-            </View>
-            <View style={styles.row}>
-              <Text style={styles.label}>Longitude:</Text>
-              <Text style={styles.value}>{currentLocation.longitude.toFixed(6)}°</Text>
-            </View>
-            <View style={styles.row}>
-              <Text style={styles.label}>Accuracy:</Text>
-              <Text style={styles.value}>{currentLocation.accuracy?.toFixed(1)} meters</Text>
-            </View>
+        <Text style={styles.sectionTitle}>Part 5 – Advanced Location</Text>
+        <View style={styles.buttonContainer}>
+          <Button title="Start Live Tracking" onPress={handleTrackLocation} color="#4CAF50" />
+          <Button title="Stop Live Tracking" onPress={handleStopTracker} color="#d32f2f" />
+          <Button title="Reverse Geocode (Coords → Address)" onPress={handleReverseGeocode} />
+          <Button title="Forward Geocode (Ahmedabad, GJ)" onPress={handleForwardGeocode} />
+        </View>
+
+        {currentLocation && (
+          <View style={styles.infoBox}>
+            <Text style={styles.infoTitle}>Current Location (High Accuracy):</Text>
+            <Text>Latitude : {currentLocation.coords.latitude.toFixed(6)}</Text>
+            <Text>Longitude : {currentLocation.coords.longitude.toFixed(6)}</Text>
+            <Text>Altitude : {currentLocation.coords.altitude?.toFixed(1) ?? 'N/A'} m</Text>
+            <Text>Speed : {currentLocation.coords.speed?.toFixed(2) ?? 'N/A'} m/s</Text>
+            <Text>Accuracy : {getAccuracyLabel(currentLocation.coords.accuracy)}</Text>
+            <Text>Timestamp : {new Date(currentLocation.timestamp).toLocaleTimeString()}</Text>
+          </View>
+        )}
+
+        {lastLocation && (
+          <View style={styles.infoBox}>
+            <Text style={styles.infoTitle}>Last Known Location:</Text>
+            <Text>Latitude : {lastLocation.coords.latitude.toFixed(6)}</Text>
+            <Text>Longitude : {lastLocation.coords.longitude.toFixed(6)}</Text>
+            <Text>Accuracy : {getAccuracyLabel(lastLocation.coords.accuracy)}</Text>
+            <Text>Cached At : {new Date(lastLocation.timestamp).toLocaleTimeString()}</Text>
+          </View>
+        )}
+
+        {liveLocation && (
+          <View style={[styles.infoBox, styles.liveBox]}>
+            <Text style={styles.infoTitle}>Live Location (Tracking Active):</Text>
+            <Text>Latitude : {liveLocation.coords.latitude.toFixed(6)}</Text>
+            <Text>Longitude : {liveLocation.coords.longitude.toFixed(6)}</Text>
+            <Text>Speed : {liveLocation.coords.speed?.toFixed(2) ?? 'N/A'} m/s</Text>
+            <Text>Accuracy : {getAccuracyLabel(liveLocation.coords.accuracy)}</Text>
             {heading !== null && (
-              <View style={styles.row}>
-                <Text style={styles.label}>Compass:</Text>
-                <Text style={styles.value}>{heading}° Heading</Text>
-              </View>
+              <Text>Compass Heading : {heading}° (N=0, E=90, S=180, W=270)</Text>
             )}
-
-            {address && (
-              <View style={styles.addressBox}>
-                <Text style={styles.addressLabel}>Reverse Geocoded Address:</Text>
-                <Text style={styles.addressText}>{address}</Text>
-              </View>
-            )}
-          </View>
-        ) : (
-          <ActivityIndicator size="large" color="#2196F3" style={{ marginVertical: 20 }} />
-        )}
-
-        {lastKnownLocation && (
-          <View style={styles.card}>
-            <Text style={styles.cardTitle}>Last Known Location</Text>
-            <Text style={styles.smallText}>
-              Lat: {lastKnownLocation.latitude.toFixed(4)} | Lon: {lastKnownLocation.longitude.toFixed(4)}
-            </Text>
           </View>
         )}
 
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>Geocoding (Address Search)</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="Enter city or landmark..."
-            placeholderTextColor="#888"
-            value={searchAddress}
-            onChangeText={setSearchAddress}
-          />
-          <Pressable style={styles.btn} onPress={handleForwardGeocode}>
-            <Text style={styles.btnText}>Search Coordinates</Text>
-          </Pressable>
+        {address && (
+          <View style={styles.infoBox}>
+            <Text style={styles.infoTitle}>Reverse Geocoded Address:</Text>
+            <Text>Name : {address.name}</Text>
+            <Text>Street : {address.street}</Text>
+            <Text>City : {address.city}</Text>
+            <Text>District : {address.district}</Text>
+            <Text>Region : {address.region}</Text>
+            <Text>Postal Code : {address.postalCode}</Text>
+            <Text>Country : {address.country} ({address.isoCountryCode})</Text>
+          </View>
+        )}
 
-          {geocodedResult && (
-            <View style={styles.geocodeResultBox}>
-              <Text style={styles.value}>Lat: {geocodedResult.latitude}</Text>
-              <Text style={styles.value}>Lon: {geocodedResult.longitude}</Text>
-            </View>
-          )}
-        </View>
+        {geocodedResult && (
+          <View style={styles.infoBox}>
+            <Text style={styles.infoTitle}>Geocoded Coordinates (Ahmedabad, GJ):</Text>
+            <Text>Latitude : {geocodedResult.latitude}</Text>
+            <Text>Longitude : {geocodedResult.longitude}</Text>
+          </View>
+        )}
+
       </ScrollView>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: '#f5f5f5' },
-  container: { padding: 16, alignItems: 'center' },
-  centerContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 },
-  headerTitle: { fontSize: 20, fontWeight: 'bold', marginBottom: 12, color: '#333' },
-  infoText: { fontSize: 16, textAlign: 'center', color: '#666', marginBottom: 12 },
-  statusBadge: { width: '100%', padding: 10, borderRadius: 8, marginBottom: 12, alignItems: 'center' },
-  staticBadge: { backgroundColor: '#e3f2fd', borderWidth: 1, borderColor: '#2196F3' },
-  trackingBadge: { backgroundColor: '#e8f5e9', borderWidth: 1, borderColor: '#4caf50' },
+  safeArea: { flex: 1, backgroundColor: '#fff' },
+  container: { padding: 20 },
+  headerText: {
+    fontSize: 22,
+    fontWeight: 'bold',
+    textAlign: 'center',
+    marginBottom: 12,
+  },
+  statusBadge: {
+    padding: 10,
+    borderRadius: 8,
+    alignItems: 'center',
+    marginBottom: 14,
+  },
+  activeBadge: { backgroundColor: '#e8f5e9', borderWidth: 1, borderColor: '#4caf50' },
+  idleBadge: { backgroundColor: '#f5f5f5', borderWidth: 1, borderColor: '#bdbdbd' },
   statusText: { fontSize: 13, fontWeight: 'bold', color: '#333' },
-  btnRow: { flexDirection: 'row', justifyContent: 'space-between', width: '100%', gap: 10, marginBottom: 14 },
-  btn: { flex: 1, backgroundColor: '#2196F3', padding: 12, borderRadius: 8, alignItems: 'center' },
-  startBtn: { backgroundColor: '#4CAF50' },
-  stopBtn: { backgroundColor: '#f44336' },
-  btnText: { color: '#fff', fontSize: 13, fontWeight: 'bold' },
-  card: { width: '100%', backgroundColor: '#fff', padding: 14, borderRadius: 10, marginBottom: 14 },
-  cardTitle: { fontSize: 15, fontWeight: 'bold', color: '#333', marginBottom: 8 },
-  row: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 3 },
-  label: { color: '#666', fontSize: 13, fontWeight: '500' },
-  value: { color: '#111', fontSize: 13, fontWeight: 'bold' },
-  smallText: { fontSize: 12, color: '#555' },
-  addressBox: { marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderColor: '#eee' },
-  addressLabel: { fontSize: 12, fontWeight: 'bold', color: '#555' },
-  addressText: { fontSize: 13, color: '#222', marginTop: 2 },
-  input: { backgroundColor: '#f0f0f0', padding: 10, borderRadius: 6, marginBottom: 8, fontSize: 13, color: '#000' },
-  geocodeResultBox: { marginTop: 8, backgroundColor: '#e8f5e9', padding: 8, borderRadius: 6 },
+  sectionTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    marginTop: 14,
+    marginBottom: 8,
+    color: '#1a1a1a',
+    borderLeftWidth: 4,
+    borderLeftColor: '#2196F3',
+    paddingLeft: 8,
+  },
+  buttonContainer: { gap: 8, marginBottom: 12 },
+  infoBox: {
+    marginVertical: 8,
+    padding: 12,
+    backgroundColor: '#f0f0f0',
+    borderRadius: 8,
+    gap: 4,
+  },
+  liveBox: {
+    backgroundColor: '#e8f5e9',
+    borderWidth: 1,
+    borderColor: '#4caf50',
+  },
+  infoTitle: {
+    fontWeight: 'bold',
+    fontSize: 14,
+    marginBottom: 4,
+    color: '#1a1a1a',
+  },
 });
