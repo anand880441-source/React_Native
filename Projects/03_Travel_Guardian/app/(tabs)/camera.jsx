@@ -1,28 +1,25 @@
 import React, { useRef, useState, useEffect } from 'react';
-import { StyleSheet, Text, View, Pressable, Image, ScrollView, Alert, Switch, SafeAreaView } from 'react-native';
+import { StyleSheet, Text, View, Pressable, Image, ScrollView, Alert } from 'react-native';
 import { CameraView, useCameraPermissions, useMicrophonePermissions } from 'expo-camera';
 import { useVideoPlayer, VideoView } from 'expo-video';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function CameraTab() {
   const cameraRef = useRef(null);
   const [cameraPermission, requestCameraPermission] = useCameraPermissions();
   const [micPermission, requestMicPermission] = useMicrophonePermissions();
 
-  // Camera Settings
   const [facing, setFacing] = useState('back');
   const [flash, setFlash] = useState('off');
   const [torch, setTorch] = useState(false);
   const [mode, setMode] = useState('picture');
   const [zoom, setZoom] = useState(0);
 
-  // Final Enhancements
   const [gridOverlay, setGridOverlay] = useState(false);
   const [selfTimer, setSelfTimer] = useState(0);
   const [timerCountdown, setTimerCountdown] = useState(0);
   const [soundEnabled, setSoundEnabled] = useState(true);
-  const [focusPoint, setFocusPoint] = useState(null);
 
-  // Capture & Video State
   const [capturedPhoto, setCapturedPhoto] = useState(null);
   const [capturedVideo, setCapturedVideo] = useState(null);
   const [isRecording, setIsRecording] = useState(false);
@@ -42,15 +39,15 @@ export default function CameraTab() {
 
   if (!cameraPermission || !micPermission) {
     return (
-      <SafeAreaView style={styles.centerContainer}>
+      <View style={styles.centerContainer}>
         <Text style={styles.infoText}>Loading permissions...</Text>
-      </SafeAreaView>
+      </View>
     );
   }
 
   if (!cameraPermission.granted || !micPermission.granted) {
     return (
-      <SafeAreaView style={styles.centerContainer}>
+      <View style={styles.centerContainer}>
         <Text style={styles.infoText}>Camera & Microphone permissions are required.</Text>
         <Pressable
           style={styles.actionBtn}
@@ -61,7 +58,7 @@ export default function CameraTab() {
         >
           <Text style={styles.actionBtnText}>Grant Permissions</Text>
         </Pressable>
-      </SafeAreaView>
+      </View>
     );
   }
 
@@ -139,18 +136,11 @@ export default function CameraTab() {
     else setSelfTimer(0);
   };
 
-  const handleTapToFocus = (event) => {
-    const { locationX, locationY } = event.nativeEvent;
-    setFocusPoint({ x: locationX, y: locationY });
-    setTimeout(() => setFocusPoint(null), 1500);
-  };
-
   return (
     <SafeAreaView style={styles.safeArea}>
       <ScrollView contentContainerStyle={styles.container}>
         <Text style={styles.headerTitle}>Part 1, 2 & 10: Camera & Media</Text>
 
-        {/* Live Camera View */}
         <View style={styles.cameraWrapper}>
           <CameraView
             ref={cameraRef}
@@ -160,7 +150,6 @@ export default function CameraTab() {
             enableTorch={torch}
             mode={mode}
             zoom={zoom}
-            onTouchStart={handleTapToFocus}
           />
           {gridOverlay && (
             <View style={styles.gridContainer} pointerEvents="none">
@@ -177,15 +166,6 @@ export default function CameraTab() {
             </View>
           )}
 
-          {focusPoint && (
-            <View
-              style={[
-                styles.focusRing,
-                { top: focusPoint.y - 25, left: focusPoint.x - 25 },
-              ]}
-            />
-          )}
-
           {timerCountdown > 0 && (
             <View style={styles.timerBadge}>
               <Text style={styles.timerBadgeText}>{timerCountdown}</Text>
@@ -200,14 +180,13 @@ export default function CameraTab() {
           )}
         </View>
 
-        {/* Primary Controls Row */}
         <View style={styles.controlsRow}>
           <Pressable style={styles.controlBtn} onPress={() => setFacing(facing === 'back' ? 'front' : 'back')}>
-            <Text style={styles.controlBtnText}>FLIP ({facing.toUpperCase()})</Text>
+            <Text style={styles.controlBtnText}>FLIP ({facing})</Text>
           </Pressable>
 
           <Pressable style={styles.controlBtn} onPress={toggleFlash}>
-            <Text style={styles.controlBtnText}>FLASH: {flash.toUpperCase()}</Text>
+            <Text style={styles.controlBtnText}>FLASH: {flash}</Text>
           </Pressable>
 
           <Pressable style={styles.controlBtn} onPress={() => setTorch(!torch)}>
@@ -215,21 +194,12 @@ export default function CameraTab() {
           </Pressable>
 
           <Pressable style={styles.controlBtn} onPress={() => setMode(mode === 'picture' ? 'video' : 'picture')}>
-            <Text style={styles.controlBtnText}>MODE: {mode.toUpperCase()}</Text>
+            <Text style={styles.controlBtnText}>MODE: {mode}</Text>
           </Pressable>
         </View>
 
-        {/* Options & Enhancements */}
         <View style={styles.enhancementsBox}>
           <Text style={styles.subTitle}>Camera Options & Enhancements</Text>
-
-          <View style={styles.toggleRow}>
-            <Text style={styles.label}>Grid Overlay:</Text>
-            <Switch value={gridOverlay} onValueChange={setGridOverlay} />
-
-            <Text style={styles.label}>Sound:</Text>
-            <Switch value={soundEnabled} onValueChange={setSoundEnabled} />
-          </View>
 
           <View style={styles.toggleRow}>
             <Pressable style={styles.smallBtn} onPress={cycleTimer}>
@@ -242,10 +212,9 @@ export default function CameraTab() {
           </View>
         </View>
 
-        {/* Capture Action Button */}
         {mode === 'picture' ? (
           <Pressable style={styles.captureBtn} onPress={handleTakePicture}>
-            <Text style={styles.captureBtnText}>📷 TAKE PHOTO</Text>
+            <Text style={styles.captureBtnText}>TAKE PHOTO</Text>
           </Pressable>
         ) : (
           <Pressable
@@ -253,17 +222,16 @@ export default function CameraTab() {
             onPress={handleRecordVideo}
           >
             <Text style={styles.captureBtnText}>
-              {isRecording ? '⏹ STOP RECORDING' : '🎥 START RECORDING'}
+              {isRecording ? 'STOP RECORDING' : 'START RECORDING'}
             </Text>
           </Pressable>
         )}
 
-        {/* Photo Preview */}
         {capturedPhoto && (
           <View style={styles.previewCard}>
             <Text style={styles.previewTitle}>Photo Preview</Text>
             <Image source={{ uri: capturedPhoto.uri }} style={styles.previewImage} />
-            <Text style={styles.uriText} numberOfLines={2}>
+            <Text style={styles.uriText}>
               URI: {capturedPhoto.uri}
             </Text>
             <Text style={styles.detailsText}>
@@ -272,12 +240,11 @@ export default function CameraTab() {
           </View>
         )}
 
-        {/* Video Preview */}
         {capturedVideo && (
           <View style={styles.previewCard}>
             <Text style={styles.previewTitle}>Video Preview</Text>
             <VideoView style={styles.previewVideo} player={videoPlayer} />
-            <Text style={styles.uriText} numberOfLines={2}>
+            <Text style={styles.uriText}>
               URI: {capturedVideo.uri}
             </Text>
           </View>
