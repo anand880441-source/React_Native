@@ -1,14 +1,14 @@
 {
   "expo": {
-    "name": "04_Location",
-    "slug": "04_Location",
+    "name": "05_React_Native_Features",
+    "slug": "05_React_Native_Features",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "allother",
+    "scheme": "05reactnativefeatures",
     "userInterfaceStyle": "automatic",
     "ios": {
-      "supportsTablet": true
+      "icon": "./assets/expo.icon"
     },
     "android": {
       "adaptiveIcon": {
@@ -28,17 +28,11 @@
       [
         "expo-splash-screen",
         {
+          "backgroundColor": "#208AEF",
           "image": "./assets/images/splash-icon.png",
-          "imageWidth": 200,
-          "resizeMode": "contain",
-          "backgroundColor": "#ffffff",
-          "dark": {
-            "backgroundColor": "#000000"
-          }
+          "imageWidth": 76
         }
-      ],
-      "expo-secure-store",
-      "expo-video"
+      ]
     ],
     "experiments": {
       "typedRoutes": true,

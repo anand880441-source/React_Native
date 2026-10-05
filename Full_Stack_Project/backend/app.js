@@ -5,6 +5,7 @@ const userRoutes = require("./routes/userRoutes");
 const taskRoutes = require("./routes/taskRoutes");
 
 const app = express();
+// console.log(app);
 const port = process.env.PORT || 5000;
 
 connectDB();

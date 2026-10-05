@@ -1,10 +1,11 @@
-import { StyleSheet, Text, View, Button, Pressable } from "react-native"
+import { StyleSheet, Text, View, Pressable, ScrollView } from "react-native"
 import React, { useEffect, useState } from 'react'
 import * as SecureStore from "expo-secure-store"
 import { router } from "expo-router"
+import Ionicons from '@expo/vector-icons/Ionicons'
 
 const HomeScreen = () => {
-  const [token, setToken] = useState(null)
+  const [token, setToken] = useState<string | null>(null)
   const [userData, setUserData] = useState({ name: '', email: '' })
   const [loading, setLoading] = useState(true)
 
@@ -47,14 +48,14 @@ const HomeScreen = () => {
 
   if (loading) {
     return (
-      <View style={styles.container}>
-        <Text style={styles.loadingText}>Checking authentication...</Text>
+      <View style={styles.loadingContainer}>
+        <Text style={styles.loadingText}>Loading...</Text>
       </View>
     )
   }
 
   return (
-    <View style={styles.container}>
+    <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
       <Text style={styles.title}>Welcome back,</Text>
       <Text style={styles.userName}>{userData.name}</Text>
 
@@ -69,9 +70,10 @@ const HomeScreen = () => {
       </View>
 
       <Pressable style={styles.logoutButton} onPress={handleLogout}>
-        <Text style={styles.logoutButtonText}>Logout</Text>
+        <Ionicons name="log-out-outline" size={18} color="#FFF" style={{ marginRight: 8 }} />
+        <Text style={styles.logoutButtonText}>Sign Out</Text>
       </Pressable>
-    </View>
+    </ScrollView>
   )
 }
 
@@ -79,61 +81,63 @@ export default HomeScreen
 
 const styles = StyleSheet.create({
   container: {
+    flexGrow: 1,
+    backgroundColor: '#0F172A',
+    paddingHorizontal: 20,
+    paddingVertical: 24,
+  },
+  loadingContainer: {
     flex: 1,
     backgroundColor: '#0F172A',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 24,
-    paddingVertical: 32,
+  },
+  loadingText: {
+    color: '#94A3B8',
+    fontSize: 16,
   },
   title: {
     color: '#F8FAFC',
-    fontSize: 28,
+    fontSize: 26,
     fontWeight: '700',
-    marginBottom: 8,
+    marginBottom: 4,
   },
   userName: {
-    color: '#E2E8F0',
+    color: '#3B82F6',
     fontSize: 20,
+    fontWeight: '600',
     marginBottom: 24,
   },
   card: {
-    width: '100%',
     backgroundColor: '#1E293B',
-    borderRadius: 16,
-    padding: 20,
-    marginBottom: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.15,
-    shadowRadius: 12,
-    elevation: 6,
+    borderRadius: 12,
+    padding: 18,
+    marginBottom: 14,
+    borderWidth: 1,
+    borderColor: '#334155',
   },
   cardLabel: {
     color: '#94A3B8',
-    fontSize: 14,
-    marginBottom: 6,
+    fontSize: 13,
+    marginBottom: 4,
   },
   cardValue: {
     color: '#F8FAFC',
-    fontSize: 18,
-    fontWeight: '600',
+    fontSize: 16,
+    fontWeight: '500',
   },
   logoutButton: {
-    marginTop: 24,
-    width: '100%',
-    backgroundColor: '#2563EB',
-    paddingVertical: 16,
-    borderRadius: 14,
+    flexDirection: 'row',
+    marginTop: 20,
+    backgroundColor: '#DC2626',
+    paddingVertical: 14,
+    borderRadius: 10,
     alignItems: 'center',
+    justifyContent: 'center',
   },
   logoutButtonText: {
-    color: '#F8FAFC',
-    fontWeight: '700',
-    fontSize: 16,
-  },
-  loadingText: {
-    color: '#F8FAFC',
-    fontSize: 18,
+    color: '#FFFFFF',
+    fontWeight: '600',
+    fontSize: 15,
   },
 })
